@@ -953,7 +953,7 @@ class HabanaModelRunner:
             execute_model_kwargs.update({"bypass_hpu_graphs":not use_graphs})
         htorch.core.mark_step()
         # Sample the next token based on previous logits if any.
-        if self.scheduler_config.enable_delayed_sampling and not is_prompt:
+        if self.scheduler_config.enable_delayed_sampling and self.is_driver_worker and not is_prompt:
             logits_ids_list = []
             logits_tensor = None
             logits_tensor_list = []
@@ -995,7 +995,7 @@ class HabanaModelRunner:
         with self.profiler.record_event('internal', model_event_name):
             hidden_states = self.model.forward(**execute_model_kwargs, selected_token_indices=sampling_metadata.selected_token_indices)
 
-        if self.scheduler_config.enable_delayed_sampling:
+        if self.scheduler_config.enable_delayed_sampling and self.is_driver_worker:
             if not is_prompt:
                 htorch.core.mark_step()
                 # Only after dispatching next model.forward() read and update the previous token ids to return
@@ -1033,7 +1033,7 @@ class HabanaModelRunner:
             sampling_metadata.selected_token_indices = None
             logits = self.model.compute_logits(hidden_states, sampling_metadata)
 
-        if self.scheduler_config.enable_delayed_sampling:
+        if self.scheduler_config.enable_delayed_sampling and self.is_driver_worker:
             for idx, seq_group_metadata in enumerate(seq_group_metadata_list):
                 assert len(seq_group_metadata.seq_data) == 1
                 for seq_data in seq_group_metadata.seq_data.values():
